@@ -21,6 +21,10 @@ export function offShelfProduct(id: number) {
   return request.post(`/products/${id}/off-shelf`)
 }
 
+export function onShelfProduct(id: number) {
+  return request.post(`/products/${id}/on-shelf`)
+}
+
 export function myProducts(params: Record<string, unknown>) {
   return request.get('/products/mine', { params })
 }

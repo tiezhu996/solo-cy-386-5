@@ -44,11 +44,26 @@ func (f *fakeProductRepo) ListBySeller(sellerID uint, page, pageSize int) ([]mod
 	return nil, 0, nil
 }
 func (f *fakeProductRepo) ListByIDs(ids []uint) ([]model.Product, error) { return nil, nil }
-func (f *fakeProductRepo) Update(p *model.Product) error {
-	if _, ok := f.products[p.ID]; !ok {
+func (f *fakeProductRepo) UpdateEditableFields(p *model.Product) error {
+	existing, ok := f.products[p.ID]
+	if !ok {
 		return repository.ErrNotFound
 	}
-	f.products[p.ID] = p
+	existing.Title = p.Title
+	existing.Description = p.Description
+	existing.OriginalPrice = p.OriginalPrice
+	existing.Price = p.Price
+	existing.Condition = p.Condition
+	existing.Category = p.Category
+	existing.Images = p.Images
+	return nil
+}
+func (f *fakeProductRepo) UpdateStatus(id uint, status string) error {
+	existing, ok := f.products[id]
+	if !ok {
+		return repository.ErrNotFound
+	}
+	existing.Status = status
 	return nil
 }
 func (f *fakeProductRepo) IncrViewCount(id uint) error { return nil }
@@ -141,5 +156,121 @@ func TestProductServiceFavoriteUnfavorite(t *testing.T) {
 	}
 	if ok, _ := fr.Exists(2, product.ID); ok {
 		t.Fatal("favorite should be removed")
+	}
+}
+
+func TestProductServiceUpdate(t *testing.T) {
+	svc, pr, _ := newTestProductService()
+	req := dto.ProductCreateRequest{
+		Title: "iPhone 13", Description: "九成新 iPhone 13 128G", OriginalPrice: 5999,
+		Price: 3999, Condition: "almost_new", Category: "digital",
+	}
+	product, _ := svc.Create(1, req)
+	stored := pr.products[product.ID]
+	stored.ViewCount = 42
+	stored.FavoriteCount = 7
+
+	newTitle := "iPhone 13 Pro"
+	newPrice := 4599.0
+	newCategory := "digital"
+	newCondition := "lightly_used"
+	newDesc := "轻微使用痕迹，功能完好"
+	newOrig := 6999.0
+	updated, err := svc.Update(1, product.ID, dto.ProductUpdateRequest{
+		Title: &newTitle, Description: &newDesc, OriginalPrice: &newOrig,
+		Price: &newPrice, Condition: &newCondition, Category: &newCategory,
+		Images: []string{"/uploads/a.jpg", "/uploads/b.jpg"},
+	})
+	if err != nil {
+		t.Fatalf("Update() error: %v", err)
+	}
+	if updated.Title != newTitle || updated.Price != newPrice || updated.Images != "/uploads/a.jpg,/uploads/b.jpg" {
+		t.Fatalf("editable fields not applied: %+v", updated)
+	}
+	if stored.ViewCount != 42 || stored.FavoriteCount != 7 {
+		t.Fatalf("view/favorite count must not change, got view=%d fav=%d", stored.ViewCount, stored.FavoriteCount)
+	}
+	if stored.SellerID != 1 {
+		t.Fatalf("seller must not change, got %d", stored.SellerID)
+	}
+	if stored.Status != "on_sale" {
+		t.Fatalf("status must not change on edit, got %s", stored.Status)
+	}
+}
+
+func TestProductServiceUpdateForbiddenForNonSeller(t *testing.T) {
+	svc, _, _ := newTestProductService()
+	req := dto.ProductCreateRequest{
+		Title: "iPhone 13", Description: "九成新 iPhone 13 128G", OriginalPrice: 5999,
+		Price: 3999, Condition: "almost_new", Category: "digital",
+	}
+	product, _ := svc.Create(1, req)
+	newTitle := "被他人篡改"
+	if _, err := svc.Update(2, product.ID, dto.ProductUpdateRequest{Title: &newTitle}); err == nil {
+		t.Fatal("expected forbidden error for non-seller update")
+	}
+}
+
+func TestProductServiceOffShelfOnShelf(t *testing.T) {
+	svc, pr, _ := newTestProductService()
+	req := dto.ProductCreateRequest{
+		Title: "iPhone 13", Description: "九成新 iPhone 13 128G", OriginalPrice: 5999,
+		Price: 3999, Condition: "almost_new", Category: "digital",
+	}
+	product, _ := svc.Create(1, req)
+	stored := pr.products[product.ID]
+	stored.ViewCount = 10
+	stored.FavoriteCount = 3
+
+	if _, err := svc.OnShelf(1, product.ID); err == nil {
+		t.Fatal("expected conflict: on-sale product cannot be re-listed")
+	}
+	if _, err := svc.OffShelf(2, product.ID); err == nil {
+		t.Fatal("expected forbidden: non-seller cannot off-shelf")
+	}
+	if _, err := svc.OffShelf(1, product.ID); err != nil {
+		t.Fatalf("OffShelf() error: %v", err)
+	}
+	if stored.Status != "off_shelf" {
+		t.Fatalf("expected off_shelf, got %s", stored.Status)
+	}
+	if _, err := svc.OffShelf(1, product.ID); err == nil {
+		t.Fatal("expected conflict: already off-shelf")
+	}
+	if _, err := svc.OnShelf(2, product.ID); err == nil {
+		t.Fatal("expected forbidden: non-seller cannot re-list")
+	}
+	p, err := svc.OnShelf(1, product.ID)
+	if err != nil {
+		t.Fatalf("OnShelf() error: %v", err)
+	}
+	if p.Status != "on_sale" || stored.Status != "on_sale" {
+		t.Fatalf("expected on_sale after re-list, got %s", stored.Status)
+	}
+	if stored.ViewCount != 10 || stored.FavoriteCount != 3 {
+		t.Fatalf("view/favorite count must not change, got view=%d fav=%d", stored.ViewCount, stored.FavoriteCount)
+	}
+	if stored.SellerID != 1 {
+		t.Fatalf("seller must not change, got %d", stored.SellerID)
+	}
+}
+
+func TestProductServiceSoldCannotBeRelistedOrOffShelved(t *testing.T) {
+	svc, pr, _ := newTestProductService()
+	req := dto.ProductCreateRequest{
+		Title: "iPhone 13", Description: "九成新 iPhone 13 128G", OriginalPrice: 5999,
+		Price: 3999, Condition: "almost_new", Category: "digital",
+	}
+	product, _ := svc.Create(1, req)
+	pr.products[product.ID].Status = "sold"
+
+	if _, err := svc.OnShelf(1, product.ID); err == nil {
+		t.Fatal("expected error: sold product cannot be re-listed")
+	}
+	if _, err := svc.OffShelf(1, product.ID); err == nil {
+		t.Fatal("expected error: sold product cannot be off-shelved")
+	}
+	if pr.products[product.ID].Status != "sold" {
+		t.Fatalf("sold status must remain, got %s", pr.products[product.ID].Status)
 	}
 }

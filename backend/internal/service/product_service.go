@@ -90,14 +90,14 @@ func (s *ProductService) Update(userID, productID uint, req dto.ProductUpdateReq
 	if req.Images != nil {
 		product.Images = strings.Join(req.Images, ",")
 	}
-	if err := s.productRepo.Update(product); err != nil {
+	if err := s.productRepo.UpdateEditableFields(product); err != nil {
 		return nil, fmt.Errorf("update product %d: %w", productID, err)
 	}
 	s.logger.Info(constants.LogProductUpdated, "product_id", productID, "seller_id", userID, "status", product.Status)
 	return product, nil
 }
 
-// OffShelf 卖家下架商品。
+// OffShelf 卖家下架商品（仅在售商品可下架）。
 func (s *ProductService) OffShelf(userID, productID uint) (*model.Product, error) {
 	product, err := s.productRepo.GetByID(productID)
 	if err != nil {
@@ -109,11 +109,47 @@ func (s *ProductService) OffShelf(userID, productID uint) (*model.Product, error
 	if product.SellerID != userID {
 		return nil, util.NewAppError(constants.CodeForbidden, "商品下架失败：只有卖家（用户 id="+fmt.Sprint(userID)+"）可下架商品", nil)
 	}
-	product.Status = constants.ProductStatusOffShelf
-	if err := s.productRepo.Update(product); err != nil {
+	switch product.Status {
+	case constants.ProductStatusOnSale:
+		// 允许下架
+	case constants.ProductStatusSold:
+		return nil, util.NewAppError(constants.CodeProductSold, "商品下架失败：商品 id="+fmt.Sprint(productID)+" 已售出，不能下架", nil)
+	default:
+		return nil, util.NewAppError(constants.CodeConflict, "商品下架失败：商品 id="+fmt.Sprint(productID)+" 已处于下架状态", nil)
+	}
+	if err := s.productRepo.UpdateStatus(productID, constants.ProductStatusOffShelf); err != nil {
 		return nil, fmt.Errorf("off shelf product %d: %w", productID, err)
 	}
+	product.Status = constants.ProductStatusOffShelf
 	s.logger.Info(constants.LogProductOffShelf, "product_id", productID, "seller_id", userID, "status", product.Status)
+	return product, nil
+}
+
+// OnShelf 卖家重新上架商品（仅已下架商品可重新上架，已售出商品不能重新上架）。
+func (s *ProductService) OnShelf(userID, productID uint) (*model.Product, error) {
+	product, err := s.productRepo.GetByID(productID)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return nil, util.NewAppError(constants.CodeProductNotFound, "商品重新上架失败：商品 id="+fmt.Sprint(productID)+" 不存在", err)
+		}
+		return nil, fmt.Errorf("get product %d for on shelf: %w", productID, err)
+	}
+	if product.SellerID != userID {
+		return nil, util.NewAppError(constants.CodeForbidden, "商品重新上架失败：只有卖家（用户 id="+fmt.Sprint(userID)+"）可重新上架商品", nil)
+	}
+	switch product.Status {
+	case constants.ProductStatusOffShelf:
+		// 允许重新上架
+	case constants.ProductStatusSold:
+		return nil, util.NewAppError(constants.CodeProductSold, "商品重新上架失败：商品 id="+fmt.Sprint(productID)+" 已售出，不能重新上架", nil)
+	default:
+		return nil, util.NewAppError(constants.CodeConflict, "商品重新上架失败：商品 id="+fmt.Sprint(productID)+" 当前在售，无需重新上架", nil)
+	}
+	if err := s.productRepo.UpdateStatus(productID, constants.ProductStatusOnSale); err != nil {
+		return nil, fmt.Errorf("on shelf product %d: %w", productID, err)
+	}
+	product.Status = constants.ProductStatusOnSale
+	s.logger.Info(constants.LogProductOnShelf, "product_id", productID, "seller_id", userID, "status", product.Status)
 	return product, nil
 }
 

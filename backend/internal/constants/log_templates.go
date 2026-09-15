@@ -17,6 +17,7 @@ const (
 	LogProductCreated       = "product created, product_id=%d, seller_id=%d, category=%s, condition=%s"
 	LogProductUpdated       = "product updated, product_id=%d, seller_id=%d, status=%s"
 	LogProductOffShelf      = "product off shelf, product_id=%d, seller_id=%d, status=%s"
+	LogProductOnShelf       = "product on shelf, product_id=%d, seller_id=%d, status=%s"
 	LogProductViewed        = "product viewed, product_id=%d, view_count=%d"
 	LogFavoriteAdded        = "favorite added, user_id=%d, product_id=%d"
 	LogFavoriteRemoved      = "favorite removed, user_id=%d, product_id=%d"

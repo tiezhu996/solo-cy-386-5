@@ -17,10 +17,12 @@
             <el-table-column label="售价" width="120"><template #default="{ row }">¥{{ formatPrice(row.price) }}</template></el-table-column>
             <el-table-column label="状态" width="120"><template #default="{ row }"><StatusBadge type="product" :value="row.status" /></template></el-table-column>
             <el-table-column label="浏览" width="100" prop="view_count" />
-            <el-table-column label="操作" width="160">
+            <el-table-column label="操作" width="230">
               <template #default="{ row }">
                 <el-button link type="primary" @click="$router.push(`/products/${row.id}`)">查看</el-button>
+                <el-button v-if="row.status !== 'sold'" link type="primary" @click="$router.push(`/products/${row.id}/edit`)">编辑</el-button>
                 <el-button v-if="row.status === 'on_sale'" link type="warning" @click="offShelf(row.id)">下架</el-button>
+                <el-button v-if="row.status === 'off_shelf'" link type="success" @click="onShelf(row.id)">重新上架</el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -139,6 +141,12 @@ async function loadAddresses() {
 async function offShelf(id: number) {
   await productApi.offShelfProduct(id)
   ElMessage.success('已下架')
+  loadProducts()
+}
+
+async function onShelf(id: number) {
+  await productApi.onShelfProduct(id)
+  ElMessage.success('已重新上架')
   loadProducts()
 }
 

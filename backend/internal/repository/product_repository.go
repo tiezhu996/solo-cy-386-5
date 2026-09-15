@@ -16,7 +16,8 @@ type ProductRepository interface {
 	List(query map[string]interface{}, sortBy string, page, pageSize int) ([]model.Product, int64, error)
 	ListBySeller(sellerID uint, page, pageSize int) ([]model.Product, int64, error)
 	ListByIDs(ids []uint) ([]model.Product, error)
-	Update(product *model.Product) error
+	UpdateEditableFields(product *model.Product) error
+	UpdateStatus(id uint, status string) error
 	IncrViewCount(id uint) error
 	IncrFavoriteCount(tx *gorm.DB, id uint, delta int) error
 	UpdateStatusForUpdate(tx *gorm.DB, id uint, status string) error
@@ -150,9 +151,28 @@ func (r *productRepo) ListByIDs(ids []uint) ([]model.Product, error) {
 	return products, nil
 }
 
-func (r *productRepo) Update(product *model.Product) error {
-	if err := r.db.Save(product).Error; err != nil {
-		return fmt.Errorf("update product %d: %w", product.ID, err)
+// UpdateEditableFields 仅更新卖家可编辑列，卖家/浏览量/收藏量等字段不受影响。
+func (r *productRepo) UpdateEditableFields(product *model.Product) error {
+	res := r.db.Model(&model.Product{}).Where("id = ?", product.ID).
+		Select("title", "description", "original_price", "price", "condition", "category", "images").
+		Updates(product)
+	if res.Error != nil {
+		return fmt.Errorf("update editable fields of product %d: %w", product.ID, res.Error)
+	}
+	if res.RowsAffected == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// UpdateStatus 仅更新商品状态列（上下架/售出流转专用）。
+func (r *productRepo) UpdateStatus(id uint, status string) error {
+	res := r.db.Model(&model.Product{}).Where("id = ?", id).Update("status", status)
+	if res.Error != nil {
+		return fmt.Errorf("update product %d status to %s: %w", id, status, res.Error)
+	}
+	if res.RowsAffected == 0 {
+		return ErrNotFound
 	}
 	return nil
 }

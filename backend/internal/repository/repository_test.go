@@ -136,6 +136,58 @@ func TestProductRepository(t *testing.T) {
 			t.Fatalf("expected view count 1, got %d", got.ViewCount)
 		}
 	})
+
+	t.Run("update_editable_fields_keeps_counters_and_seller", func(t *testing.T) {
+		p := &model.Product{SellerID: 7, Title: "旧标题", Description: "旧描述", OriginalPrice: 100, Price: 80, Condition: "almost_new", Category: "digital", Status: "on_sale"}
+		_ = repo.Create(p)
+		_ = repo.IncrViewCount(p.ID)
+		_ = repo.IncrFavoriteCount(nil, p.ID, 3)
+
+		p.Title = "新标题"
+		p.Description = "新描述内容"
+		p.Price = 66
+		p.Images = "/uploads/a.jpg,/uploads/b.jpg"
+		if err := repo.UpdateEditableFields(p); err != nil {
+			t.Fatalf("UpdateEditableFields() error: %v", err)
+		}
+		got, _ := repo.GetByID(p.ID)
+		if got.Title != "新标题" || got.Description != "新描述内容" || got.Price != 66 || got.Images != "/uploads/a.jpg,/uploads/b.jpg" {
+			t.Fatalf("editable fields not updated: %+v", got)
+		}
+		if got.ViewCount != 1 || got.FavoriteCount != 3 {
+			t.Fatalf("counters must not change, got view=%d fav=%d", got.ViewCount, got.FavoriteCount)
+		}
+		if got.SellerID != 7 {
+			t.Fatalf("seller must not change, got %d", got.SellerID)
+		}
+		if got.Status != "on_sale" {
+			t.Fatalf("status must not change on edit, got %s", got.Status)
+		}
+	})
+
+	t.Run("update_status_only_touches_status", func(t *testing.T) {
+		p := &model.Product{SellerID: 7, Title: "标题", Description: "描述", OriginalPrice: 100, Price: 80, Condition: "almost_new", Category: "digital", Status: "on_sale"}
+		_ = repo.Create(p)
+		_ = repo.IncrViewCount(p.ID)
+
+		if err := repo.UpdateStatus(p.ID, "off_shelf"); err != nil {
+			t.Fatalf("UpdateStatus() error: %v", err)
+		}
+		got, _ := repo.GetByID(p.ID)
+		if got.Status != "off_shelf" {
+			t.Fatalf("expected off_shelf, got %s", got.Status)
+		}
+		if got.ViewCount != 1 || got.SellerID != 7 || got.Title != "标题" {
+			t.Fatalf("other fields must not change: %+v", got)
+		}
+		if err := repo.UpdateStatus(p.ID, "on_sale"); err != nil {
+			t.Fatalf("UpdateStatus() re-list error: %v", err)
+		}
+		got, _ = repo.GetByID(p.ID)
+		if got.Status != "on_sale" {
+			t.Fatalf("expected on_sale after re-list, got %s", got.Status)
+		}
+	})
 }
 
 func TestOrderRepository(t *testing.T) {

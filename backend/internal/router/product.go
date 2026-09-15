@@ -18,6 +18,7 @@ func RegisterProductRoutes(api *gin.RouterGroup, h *handler.ProductHandler, secr
 		authed.POST("", h.Create)
 		authed.PUT("/:id", h.Update)
 		authed.POST("/:id/off-shelf", h.OffShelf)
+		authed.POST("/:id/on-shelf", h.OnShelf)
 		authed.POST("/:id/favorite", h.Favorite)
 		authed.DELETE("/:id/favorite", h.Unfavorite)
 		authed.GET("/mine", h.MyProducts)

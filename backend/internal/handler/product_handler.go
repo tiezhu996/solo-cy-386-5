@@ -71,6 +71,21 @@ func (h *ProductHandler) OffShelf(c *gin.Context) {
 	util.OKMessage(c, "商品已下架", dto.FromProduct(product, false))
 }
 
+// OnShelf POST /api/v1/products/:id/on-shelf
+func (h *ProductHandler) OnShelf(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		util.Fail(c, http.StatusBadRequest, 40000, "商品重新上架失败：商品 id 参数非法")
+		return
+	}
+	product, err := h.svc.OnShelf(middleware.GetUserID(c), uint(id))
+	if err != nil {
+		util.AbortWithError(c, err)
+		return
+	}
+	util.OKMessage(c, "商品已重新上架", dto.FromProduct(product, false))
+}
+
 // Detail GET /api/v1/products/:id
 func (h *ProductHandler) Detail(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)

@@ -223,7 +223,7 @@ curl -sS -X POST http://localhost:19406/api/v1/orders/$ORDER_ID/pay -H "Authoriz
 - `frontend/src/constants/index.ts`（ProductCondition/ProductConditionText）
 - `frontend/src/components/ProductCard.vue`（成色展示）
 - `frontend/src/components/ProductFilterBar.vue`（成色筛选）
-- `frontend/src/pages/ProductCreatePage.vue`（发布成色选择）
+- `frontend/src/pages/ProductCreatePage.vue`（发布成色选择）、`ProductEditPage.vue`（编辑成色选择）
 - `frontend/src/utils/format.ts`（formatCondition）
 
 ### 3. 商品分类 ProductCategory（digital/clothing/books/home/sports/other）
@@ -242,7 +242,7 @@ curl -sS -X POST http://localhost:19406/api/v1/orders/$ORDER_ID/pay -H "Authoriz
 
 - `frontend/src/constants/index.ts`（ProductCategory/ProductCategoryText）
 - `frontend/src/components/ProductCard.vue`、`ProductFilterBar.vue`
-- `frontend/src/pages/ProductCreatePage.vue`
+- `frontend/src/pages/ProductCreatePage.vue`、`ProductEditPage.vue`
 - `frontend/src/utils/format.ts`（formatCategory）
 
 ### 4. 商品状态 ProductStatus（on_sale/sold/off_shelf）
@@ -251,17 +251,17 @@ curl -sS -X POST http://localhost:19406/api/v1/orders/$ORDER_ID/pay -H "Authoriz
 
 - `backend/internal/constants/enums.go`（定义 + `ValidProductStatus`）
 - `backend/internal/model/product.go`（Status 字段默认值）
-- `backend/internal/service/product_service.go`（OffShelf、下单改 sold、取消恢复 on_sale）
+- `backend/internal/service/product_service.go`（OffShelf、OnShelf、下单改 sold、取消恢复 on_sale）
 - `backend/internal/service/order_service.go`（Create 锁行校验 + 状态流转）
 - `backend/internal/repository/product_repository.go`（UpdateStatusForUpdate）
 - `backend/internal/util/formatters.go`（FormatProductStatusText）
-- `backend/internal/constants/log_templates.go`（LogProductUpdated/OffShelf）
+- `backend/internal/constants/log_templates.go`（LogProductUpdated/OffShelf/OnShelf）
 
 前端出现位置：
 
 - `frontend/src/constants/index.ts`（ProductStatus/ProductStatusText）
 - `frontend/src/components/StatusBadge.vue`、`ProductCard.vue`
-- `frontend/src/pages/ProfilePage.vue`（我的发布下架按钮显隐）
+- `frontend/src/pages/ProfilePage.vue`（我的发布编辑/下架/重新上架按钮显隐）
 - `frontend/src/utils/format.ts`（formatProductStatus）
 
 ### 5. 用户角色 UserRole（user/admin）
