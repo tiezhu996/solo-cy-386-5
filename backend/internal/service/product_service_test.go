@@ -13,8 +13,9 @@ import (
 
 // fakeProductRepo 内存版商品仓储。
 type fakeProductRepo struct {
-	products map[uint]*model.Product
-	seq      uint
+	products  map[uint]*model.Product
+	seq       uint
+	viewIncrs int
 }
 
 func newFakeProductRepo() *fakeProductRepo {
@@ -66,7 +67,13 @@ func (f *fakeProductRepo) UpdateStatus(id uint, status string) error {
 	existing.Status = status
 	return nil
 }
-func (f *fakeProductRepo) IncrViewCount(id uint) error { return nil }
+func (f *fakeProductRepo) IncrViewCount(id uint) error {
+	f.viewIncrs++
+	if p, ok := f.products[id]; ok {
+		p.ViewCount++
+	}
+	return nil
+}
 func (f *fakeProductRepo) IncrFavoriteCount(tx *gorm.DB, id uint, delta int) error {
 	return nil
 }
@@ -272,5 +279,62 @@ func TestProductServiceSoldCannotBeRelistedOrOffShelved(t *testing.T) {
 	}
 	if pr.products[product.ID].Status != "sold" {
 		t.Fatalf("sold status must remain, got %s", pr.products[product.ID].Status)
+	}
+}
+
+func TestProductServiceGetForEdit(t *testing.T) {
+	svc, pr, _ := newTestProductService()
+	req := dto.ProductCreateRequest{
+		Title: "iPhone 13", Description: "九成新 iPhone 13 128G", OriginalPrice: 5999,
+		Price: 3999, Condition: "almost_new", Category: "digital", Images: []string{"/uploads/a.jpg"},
+	}
+	product, _ := svc.Create(1, req)
+
+	got, err := svc.GetForEdit(1, product.ID)
+	if err != nil {
+		t.Fatalf("GetForEdit() error: %v", err)
+	}
+	if got.Title != "iPhone 13" || got.Images != "/uploads/a.jpg" {
+		t.Fatalf("edit info incomplete: %+v", got)
+	}
+	if pr.viewIncrs != 0 || got.ViewCount != 0 {
+		t.Fatalf("edit fetch must not count views, incrs=%d view=%d", pr.viewIncrs, got.ViewCount)
+	}
+	if _, err := svc.GetForEdit(2, product.ID); err == nil {
+		t.Fatal("expected forbidden: non-seller cannot fetch edit info")
+	}
+	if _, err := svc.GetForEdit(1, 999); err == nil {
+		t.Fatal("expected not found for missing product")
+	}
+	if pr.viewIncrs != 0 {
+		t.Fatalf("failed edit fetches must not count views, incrs=%d", pr.viewIncrs)
+	}
+}
+
+func TestProductServiceGetDetailViewCount(t *testing.T) {
+	svc, pr, _ := newTestProductService()
+	req := dto.ProductCreateRequest{
+		Title: "iPhone 13", Description: "九成新 iPhone 13 128G", OriginalPrice: 5999,
+		Price: 3999, Condition: "almost_new", Category: "digital",
+	}
+	product, _ := svc.Create(1, req)
+
+	if _, err := svc.GetDetail(product.ID, 1); err != nil {
+		t.Fatalf("GetDetail() seller error: %v", err)
+	}
+	if pr.viewIncrs != 0 {
+		t.Fatalf("seller viewing own product must not count, incrs=%d", pr.viewIncrs)
+	}
+	if _, err := svc.GetDetail(product.ID, 2); err != nil {
+		t.Fatalf("GetDetail() other user error: %v", err)
+	}
+	if _, err := svc.GetDetail(product.ID, 0); err != nil {
+		t.Fatalf("GetDetail() anonymous error: %v", err)
+	}
+	if pr.viewIncrs != 2 {
+		t.Fatalf("other/anonymous views must count, incrs=%d", pr.viewIncrs)
+	}
+	if pr.products[product.ID].ViewCount != 2 {
+		t.Fatalf("expected view count 2, got %d", pr.products[product.ID].ViewCount)
 	}
 }

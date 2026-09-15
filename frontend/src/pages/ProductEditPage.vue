@@ -64,7 +64,8 @@ onMounted(async () => {
   pageLoading.value = true
   try {
     if (!userStore.user) await userStore.fetchProfile()
-    const res: any = await productApi.getProduct(productId)
+    // 编辑回填走专用接口，不计浏览量
+    const res: any = await productApi.getProductForEdit(productId)
     const p = res.data
     if (p.seller_id !== userStore.user?.id) {
       ElMessage.error('只有商品所属卖家可以编辑该商品')
@@ -78,6 +79,9 @@ onMounted(async () => {
     form.original_price = p.original_price
     form.price = p.price
     form.images = [...(p.images || [])]
+  } catch {
+    // 非卖家或商品不存在：拦截器已提示原因，回退到详情页
+    router.replace(`/products/${productId}`)
   } finally {
     pageLoading.value = false
   }

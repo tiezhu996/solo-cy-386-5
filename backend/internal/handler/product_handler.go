@@ -93,7 +93,22 @@ func (h *ProductHandler) Detail(c *gin.Context) {
 		util.Fail(c, http.StatusBadRequest, 40000, "商品详情失败：商品 id 参数非法")
 		return
 	}
-	product, err := h.svc.GetDetail(uint(id))
+	product, err := h.svc.GetDetail(uint(id), middleware.GetUserID(c))
+	if err != nil {
+		util.AbortWithError(c, err)
+		return
+	}
+	util.OK(c, dto.FromProduct(product, false))
+}
+
+// EditInfo GET /api/v1/products/:id/edit（卖家编辑回填，不计浏览量）
+func (h *ProductHandler) EditInfo(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		util.Fail(c, http.StatusBadRequest, 40000, "商品编辑信息获取失败：商品 id 参数非法")
+		return
+	}
+	product, err := h.svc.GetForEdit(middleware.GetUserID(c), uint(id))
 	if err != nil {
 		util.AbortWithError(c, err)
 		return

@@ -11,12 +11,13 @@ func RegisterProductRoutes(api *gin.RouterGroup, h *handler.ProductHandler, secr
 	public := api.Group("/products")
 	{
 		public.GET("", h.List)
-		public.GET("/:id", h.Detail)
+		public.GET("/:id", middleware.OptionalAuth(secret), h.Detail)
 	}
 	authed := api.Group("/products", middleware.Auth(secret))
 	{
 		authed.POST("", h.Create)
 		authed.PUT("/:id", h.Update)
+		authed.GET("/:id/edit", h.EditInfo)
 		authed.POST("/:id/off-shelf", h.OffShelf)
 		authed.POST("/:id/on-shelf", h.OnShelf)
 		authed.POST("/:id/favorite", h.Favorite)

@@ -153,8 +153,8 @@ func (s *ProductService) OnShelf(userID, productID uint) (*model.Product, error)
 	return product, nil
 }
 
-// GetDetail 商品详情（自增浏览量）。
-func (s *ProductService) GetDetail(productID uint) (*model.Product, error) {
+// GetDetail 商品详情（自增浏览量；卖家本人查看自己的商品不计浏览量）。
+func (s *ProductService) GetDetail(productID, viewerID uint) (*model.Product, error) {
 	product, err := s.productRepo.GetByID(productID)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
@@ -162,10 +162,27 @@ func (s *ProductService) GetDetail(productID uint) (*model.Product, error) {
 		}
 		return nil, fmt.Errorf("get product detail %d: %w", productID, err)
 	}
-	if err := s.productRepo.IncrViewCount(productID); err != nil {
-		s.logger.Warn("incr view count failed", "product_id", productID, "err", err)
+	if viewerID == 0 || viewerID != product.SellerID {
+		if err := s.productRepo.IncrViewCount(productID); err != nil {
+			s.logger.Warn("incr view count failed", "product_id", productID, "err", err)
+		}
+		s.logger.Info(constants.LogProductViewed, "product_id", productID, "view_count", product.ViewCount+1)
 	}
-	s.logger.Info(constants.LogProductViewed, "product_id", productID, "view_count", product.ViewCount+1)
+	return product, nil
+}
+
+// GetForEdit 卖家编辑回填用商品信息（不产生浏览量，仅商品所属卖家可用）。
+func (s *ProductService) GetForEdit(userID, productID uint) (*model.Product, error) {
+	product, err := s.productRepo.GetByID(productID)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return nil, util.NewAppError(constants.CodeProductNotFound, "商品编辑信息获取失败：商品 id="+fmt.Sprint(productID)+" 不存在", err)
+		}
+		return nil, fmt.Errorf("get product %d for edit: %w", productID, err)
+	}
+	if product.SellerID != userID {
+		return nil, util.NewAppError(constants.CodeForbidden, "商品编辑信息获取失败：只有卖家（用户 id="+fmt.Sprint(userID)+"）可编辑商品", nil)
+	}
 	return product, nil
 }
 

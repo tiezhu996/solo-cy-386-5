@@ -27,6 +27,8 @@ func TestProductRoutesRegister(t *testing.T) {
 		found[ri.Method+" "+ri.Path] = true
 	}
 	for _, want := range []string{
+		"GET /api/v1/products/:id",
+		"GET /api/v1/products/:id/edit",
 		"POST /api/v1/products/:id/on-shelf",
 		"POST /api/v1/products/:id/off-shelf",
 		"PUT /api/v1/products/:id",

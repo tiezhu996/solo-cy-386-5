@@ -9,6 +9,10 @@ export function getProduct(id: number) {
   return request.get(`/products/${id}`)
 }
 
+export function getProductForEdit(id: number) {
+  return request.get(`/products/${id}/edit`)
+}
+
 export function createProduct(data: Record<string, unknown>) {
   return request.post('/products', data)
 }
