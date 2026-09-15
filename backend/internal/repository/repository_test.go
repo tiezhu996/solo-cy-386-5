@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/glebarez/sqlite"
@@ -8,13 +9,19 @@ import (
 	"gorm.io/gorm"
 )
 
-// newTestDB 创建内存 SQLite 数据库并迁移模型。
+// newTestDB 创建内存 SQLite 数据库并迁移模型（按测试名隔离，结束自动关闭，重复运行结果一致）。
 func newTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{})
+	dsn := fmt.Sprintf("file:%s?mode=memory&cache=shared", t.Name())
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatalf("get sql db: %v", err)
+	}
+	t.Cleanup(func() { _ = sqlDB.Close() })
 	models := []interface{}{
 		&model.User{}, &model.Product{}, &model.Favorite{}, &model.Address{},
 		&model.CartItem{}, &model.Order{}, &model.Message{}, &model.Review{}, &model.AuditLog{},
